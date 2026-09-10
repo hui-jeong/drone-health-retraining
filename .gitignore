@@ -1,0 +1,8 @@
+﻿.venv/
+__pycache__/
+datasets/
+outputs/
+*.pt
+*.pth
+*.joblib
+config/paths.local.yaml
