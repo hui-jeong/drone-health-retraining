@@ -1,0 +1,6 @@
+# 개인 환경에 맞게 수정한 뒤 paths.local.yaml로 저장
+# paths.local.yaml은 Git에 업로드 X
+
+data_root: "D:/path/to/datasets"
+baseline_model_root: "D:/path/to/baseline_model"
+output_root: "D:/path/to/retraining_outputs"

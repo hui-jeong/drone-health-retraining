@@ -1,0 +1,27 @@
+project:
+  name: "drone-health-retraining"
+
+data:
+  sample_rate_hz: 10
+  window_size: 50
+  feature_count: 106
+
+split:
+  train_run_ids:
+    - "000"
+    - "001"
+    - "002"
+    - "003"
+    - "004"
+    - "005"
+    - "006"
+
+  validation_run_ids:
+    - "007"
+
+  test_run_ids:
+    - "008"
+    - "009"
+
+model:
+  threshold_percentile: 99
