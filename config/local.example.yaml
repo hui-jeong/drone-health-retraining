@@ -1,0 +1,5 @@
+paths:
+  company_model_root: C:/path/to/drone_health_lstm_ae_v2.3
+  company_config: C:/path/to/drone_health_lstm_ae_v2.3/config/default.yaml
+  data_root: C:/path/to/datasets/preprocessing
+  model_output_root: C:/path/to/datasets/lstm_ae_outputs_v23
