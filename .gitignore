@@ -1,4 +1,4 @@
-﻿.venv/
+.venv/
 __pycache__/
 datasets/
 outputs/
@@ -6,3 +6,25 @@ outputs/
 *.pth
 *.joblib
 config/paths.local.yaml
+
+# PAPE local environments, generated handoff bundles and reports
+.venv-hybrid/
+.pytest_cache/
+*.py[cod]
+*.npy
+*.ckpt
+*.h5
+*.onnx
+*.bin
+.env
+output/
+tmp/
+deliverables/
+.chart-data-*/
+config/pape_fixed_reference.local.yaml
+config/pape_version_1_0.local.yaml
+*.zip
+*.parquet
+*.npz
+local.yaml
+*.local.yaml

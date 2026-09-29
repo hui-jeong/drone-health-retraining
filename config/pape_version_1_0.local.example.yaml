@@ -1,0 +1,4 @@
+# Copy to config/pape_version_1_0.local.yaml (ignored by Git).
+pape_data:
+  window_features: shared/window_features.parquet
+  baseline_manifest: shared/baseline_manifest.json

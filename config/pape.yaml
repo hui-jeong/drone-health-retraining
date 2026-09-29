@@ -1,0 +1,111 @@
+model_version: "Hybrid LSTM-AE v2.3"
+seed: 11
+data_origin: synthetic_window_feature_fixture
+paths:
+  output_root: outputs/pape
+window:
+  sampling_hz: 10
+  timesteps: 50
+  stride_timesteps: 5
+  duration_seconds: 5.0
+  stride_seconds: 0.5
+  anomaly_fraction_threshold: 0.20
+  timestamp_convention: end_exclusive
+  allow_end_aligned_tail: false
+  time_tolerance: 0.000001
+split:
+  baseline_train_run_ids: ["000", "001", "002", "003", "004", "005", "006"]
+  baseline_validation_run_ids: ["007"]
+  official_test_run_ids: ["008", "009"]
+  fractions:
+    source: 0.50
+    selection: 0.25
+    validation: 0.25
+loss:
+  status: user_approved_dummy_only_not_company_cost
+  lambda_fn: 1.0
+  lambda_fp: 1.0
+  sensitivity:
+    - name: fn10_fp1_reference_only
+      lambda_fn: 10.0
+      lambda_fp: 1.0
+metrics:
+  zero_division: 0.0
+pape:
+  input_variant: hybrid_score
+  weighting: dre
+  variants:
+    hybrid_score:
+      dre_features: [hybrid_score]
+      calibration_features: [hybrid_score]
+    ae_score:
+      dre_features: [ae_score]
+      calibration_features: [ae_score]
+    residual_probability:
+      dre_features: [residual_probability]
+      calibration_features: [residual_probability]
+    combined_scores:
+      dre_features: [ae_score, residual_probability, hybrid_score]
+      calibration_features: [ae_score, residual_probability, hybrid_score]
+    hybrid_score_dre_combined:
+      dre_features: [ae_score, residual_probability, hybrid_score]
+      calibration_features: [hybrid_score]
+dre:
+  n_splits: 3
+  probability_epsilon: 0.000001
+  clip_min: 0.05
+  clip_max: 20.0
+  lgbm:
+    objective: binary
+    n_estimators: 100
+    learning_rate: 0.1
+    num_leaves: 31
+    min_child_samples: 20
+    class_weight: null
+    n_jobs: 1
+    deterministic: true
+    force_col_wise: true
+    verbosity: -1
+calibrator:
+  lgbm:
+    objective: regression
+    n_estimators: 100
+    learning_rate: 0.1
+    num_leaves: 31
+    min_child_samples: 20
+    n_jobs: 1
+    deterministic: true
+    force_col_wise: true
+    verbosity: -1
+diagnostics:
+  min_ess_ratio: 0.20
+  max_clip_fraction: 0.20
+  max_outside_range_fraction: 0.10
+  min_target_windows: 80
+  min_expected_positives: 1.0
+experiment:
+  seeds: [11, 23, 37]
+  weightings: [uniform, dre]
+  selection_case: covariate_shift
+  diagnostic_cases: [no_shift, concept_shift, support_shift]
+  selection_priority: [fn_mae, recall_mae]
+  tie_breakers: [fn_mae, recall_mae, f1_mae, loss_mae, input_name]
+  selection_rule: sum_of_fn_and_recall_mae_ranks
+dummy:
+  scenario_ids: [A1, A2, B1, B2, C1, C2, D1, D2]
+  run_ids: ["000", "001"]
+  windows_per_run: 160
+  normal_validation_windows: 2000
+  validation_seed_offset: 10000
+  noise_scale: 0.85
+  source_z_mean: -0.6
+  target_z_shift: 1.2
+  normal_target_x_shift: 0.35
+  support_x_shift: 5.0
+  prediction_threshold: 0.64
+  hysteresis_off_threshold: 0.52
+  consecutive_on_windows: 2
+  fusion_ae_weight: 0.55
+  fusion_residual_weight: 0.45
+  abnormal_positive_fraction: 0.40
+  abnormal_negative_fraction: 0.10

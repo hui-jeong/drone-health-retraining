@@ -1,0 +1,32 @@
+# Existing model-adapter export is immutable. Only PAPE is fitted.
+model_version: "Hybrid LSTM-AE v2.3"
+data_origin: frozen_model_adapter_handoff
+loss:
+  status: experimental_sensitivity_only_not_company_cost
+window:
+  timestamp_convention: last_sample
+  allow_end_aligned_tail: true
+fixed_reference:
+  protocol: frozen_export_source_v1
+  roles:
+    model_fit: []
+    model_calibration: []
+    pape_source: ["000", "001", "002", "003", "004", "005", "006"]
+    pape_validation: ["007"]
+  expected_source_keys:
+    pape_source: 126
+    pape_validation: 18
+  export_root: outputs/baseline/frozen_handoff_000006_20260921
+  evaluation_root: outputs/pape/frozen_handoff_000006_20260921
+  model_seed: 42
+  pape_workers: 4
+experiment:
+  seeds: [11, 23, 37, 53, 71]
+  input_names: [ae_score, residual_probability, hybrid_score, combined_scores]
+  weightings: [uniform, dre]
+  selection_rule: report_fn_recall_tradeoffs_without_automatic_selection
+  stability_scope: fixed_source_target_and_delivered_model_outputs_vary_pape_rng_only
+dre:
+  weight_estimation_method: source_group_oof
+calibrator:
+  record_training_loss: true
