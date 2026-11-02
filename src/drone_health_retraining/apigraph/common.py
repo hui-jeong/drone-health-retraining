@@ -37,12 +37,15 @@ def load_config(path):
  cfg=yaml.safe_load(local_path(path).read_text('utf-8-sig'));validate_config(cfg);return cfg
 def validate_config(cfg):
  split=cfg['split']
- required={'train_year':'2012','source_start':'2013-01','source_end':'2015-12','validation_start':'2016-01','validation_end':'2016-12','test_start':'2017-01','test_end':'2018-12'}
- if split!=required:raise ValueError('V7 requires 2012 Train, 2013-2015 Source, 2016 Validation, reserved 2017-2018 Test')
- if cfg['protocol_version']!='apigraph_fresh_source2013_2015_validation2016_v7':raise ValueError('Protocol version mismatch')
+ required={'train_year':'2012','source_start':'2013-01','source_end':'2014-12','validation_start':'2015-01','validation_end':'2015-12','test_start':'2016-01','test_end':'2018-12'}
+ if split!=required:raise ValueError('V8 requires 2012 Train, 2013-2014 Source, 2015 Validation, reserved 2016-2018 Test')
+ if cfg['protocol_version']!='apigraph_meeting_validation2015_v8':raise ValueError('Protocol version mismatch')
  if cfg['chunks']['export_modes']!=['monthly']:raise ValueError('Only monthly windows are supported')
  if cfg.get('training')!={'mode':'fresh','pretrained_model_allowed':False} or 'model_reference' in cfg:raise ValueError('Fresh model training required')
- if cfg.get('execution')!={'allowed_target_roles':['validation'],'final_test_enabled':False}:raise ValueError('Validation-only execution required')
+ execution=cfg.get('execution',{})
+ if execution.get('allowed_target_roles')!=['validation'] or execution.get('final_test_enabled') is not False or not 1<=execution.get('workers',0)<=4:raise ValueError('Validation-only execution with 1-4 workers required')
+ annual=cfg.get('annual_source',{})
+ if annual!={'update_month':1,'policy':'cumulative_previous_year','first_test_source_end':'2015-12','validation_released_after_selection_freeze':True,'require_previous_year_completed':True,'label_availability_assumption':'all_previous_year_labels_available_at_next_january','execution_owner':'future_integration'}:raise ValueError('Meeting annual Source handoff policy required')
  expected_integration={'schema_version':'pape_gain_rccda_monthly_v1','aggregation':'per_seed_no_pooling','matrix_label_order':[0,1],'matrix_axes':['true','predicted'],'decision_timing':'after_month_close_for_next_month','source_update_retrains_detector':False}
  if cfg['integration']!=expected_integration:raise ValueError('Integration contract mismatch')
  if cfg['data']['duplicate_policy']!='keep_original_rows_report_overlap':raise ValueError('Original-row policy required')

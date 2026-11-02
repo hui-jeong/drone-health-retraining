@@ -32,7 +32,8 @@ def build_model_handoff(model_run,export_run,output_dir,*,replay_predictions=Tru
     apps_all=[];monthly=[];annual=[];source_ids=None;max_diff=0.;roles=[]
     cfg=__import__('yaml').safe_load((export_run/'resolved.yaml').read_text('utf-8-sig'))
     cfg=__import__('copy').deepcopy(cfg)
-    for role,start,end in [('source','2013-01','2015-12'),('validation','2016-01','2016-12')]:
+    for role in ['source','validation']:
+        start,end=role_period(cfg,role)
         apps=pd.read_parquet(export_run/role/'app_features.parquet')
         binary=pd.read_parquet(export_run/role/'binary_features.parquet')
         labels=pd.read_parquet(export_run/role/'labels_for_evaluation.parquet')
@@ -46,7 +47,7 @@ def build_model_handoff(model_run,export_run,output_dir,*,replay_predictions=Tru
         if source_ids is None:source_ids=set(apps.sample_id)
         elif source_ids&set(apps.sample_id):raise ValueError('Source/Validation ID overlap')
         if membership['mode'].unique().tolist()!=['monthly'] or membership.sample_id.duplicated().any() or set(membership.sample_id)!=set(apps.sample_id):raise ValueError('Monthly membership invalid')
-        n_months=36 if role=='source' else 12
+        n_months=len(pd.period_range(start,end,freq='M'))
         if membership.target_chunk_id.nunique()!=n_months:raise ValueError('Missing monthly chunk')
         joined=apps.merge(labels,on='sample_id',validate='one_to_one')
         if len(joined)!=len(apps) or not np.isin(joined.y_true,[0,1]).all():raise ValueError('Label alignment mismatch')

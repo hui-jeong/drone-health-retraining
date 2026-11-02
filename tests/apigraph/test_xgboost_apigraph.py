@@ -33,11 +33,11 @@ class APIGraphModelTests(unittest.TestCase):
  def test_fresh_training(self):
   m=read_json(self.model/'baseline_manifest.json');self.assertTrue(m['fresh_training']);self.assertFalse(m['warm_start']);self.assertFalse(m['previous_models_loaded'])
  def test_required_workplan_files(self):
-  f=pd.read_parquet(self.handoff/'window_features.parquet');self.assertEqual(f.shape,(1152,13));self.assertFalse(f.sample_id.duplicated().any());self.assertNotIn('y_true',f)
+  f=pd.read_parquet(self.handoff/'window_features.parquet');self.assertEqual(f.shape,(864,13));self.assertFalse(f.sample_id.duplicated().any());self.assertNotIn('y_true',f)
   self.assertTrue((self.handoff/'baseline_manifest.json').exists())
  def test_months_roles_and_counts(self):
-  m=pd.read_csv(self.handoff/'model_monthly_metrics.csv');self.assertEqual(len(m),48)
-  self.assertEqual(m.groupby('role').n.sum().to_dict(),{'source':864,'validation':288})
+  m=pd.read_csv(self.handoff/'model_monthly_metrics.csv');self.assertEqual(len(m),36)
+  self.assertEqual(m.groupby('role').n.sum().to_dict(),{'source':576,'validation':288})
  def test_prediction_replay(self):
   v=verify_model_handoff(self.handoff);self.assertTrue(v['model_predictions_replayed']);self.assertEqual(v['prediction_replay_max_absolute_difference'],0)
  def test_test_access_disabled(self):
