@@ -1,0 +1,2 @@
+-r requirements-apigraph.lock.txt
+pytest==9.2.0

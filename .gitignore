@@ -6,3 +6,14 @@ outputs/
 *.pth
 *.joblib
 config/paths.local.yaml
+
+data/
+*.npz
+*.parquet
+*.zip
+*.pkl
+*.local.yaml
+local.yaml
+.env
+model.json
+*.pyc
