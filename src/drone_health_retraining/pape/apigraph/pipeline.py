@@ -5,6 +5,7 @@ import pandas as pd
 from ...apigraph.common import *
 from .pape import estimate_target_performance
 from .handoff import read_app_inputs,write_handoff,verify_handoff
+from .parallel import trial_results
 
 def verified_export(cfg,explicit=None):
  out=latest(cfg,'feature_exports',explicit);manifest=verify_export_files(out,['source','validation'])
@@ -18,7 +19,7 @@ def pape_stage(cfg,export_run=None,mode='monthly',max_chunks=0,target_role='vali
  if target_role!='validation':raise ValueError('Validation-only experiment: Test estimation disabled')
  source_export,em=verified_export(cfg,export_run);target_export=source_export;tm=em
  lock=lock_run=None;weightings=cfg['pape']['weightings'];kind='pape_validation'
- stagecfg=copy.deepcopy(cfg);source_context={'source_version':'validation_2013_2015','source_available_from_month':'2016-01','source_period':['2013-01','2015-12']}
+ stagecfg=copy.deepcopy(cfg);source_context={'source_version':'validation_2013_2014','source_available_from_month':'2015-01','source_period':['2013-01','2014-12']}
  if tm['model_hash']!=em['model_hash'] or tm['threshold_policy_hash']!=em['threshold_policy_hash']:raise ValueError('Source/Target detector mismatch')
  source=read_app_inputs(source_export,'source').merge(pd.read_parquet(source_export/'source/labels_for_evaluation.parquet'),on='sample_id',validate='one_to_one')
  source_hash=read_json(source_export/'source/role_manifest.json')['source_manifest_hash']
@@ -30,35 +31,30 @@ def pape_stage(cfg,export_run=None,mode='monthly',max_chunks=0,target_role='vali
  if max_chunks:chunkids=chunkids[:max_chunks]
  out=make_run(cfg,kind);records=[];rows=[];started=time.perf_counter();truth_labels=None
  try:
-  for cid in chunkids:
+  for cid,seed,weighting,trialconfig,result in trial_results(cfg,stagecfg,source_export,target_export,target_role,chunkids,weightings,source,target_pool,membership):
    members=membership[membership.target_chunk_id.eq(cid)].sort_values('position')
    target=members[['sample_id']].merge(target_pool,on='sample_id',validate='one_to_one')
-   for seed in cfg['pape']['seeds']:
-    for weighting in weightings:
-     trialconfig=copy.deepcopy(stagecfg);trialconfig.update(seed=int(seed),target_chunk_id=cid,target_role=target_role);trialconfig['pape']['weighting']=weighting
-     if lock:trialconfig['_final_test_authorization']={'selection_lock_hash':hash_file(lock_run/'selection_lock.json')}
-     result=estimate_target_performance(source,target,trialconfig)
-     index=len(rows);trial=out/'trials'/f'{index:05d}';trial.mkdir(parents=True)
-     result.target_probabilities.to_csv(trial/'target_probabilities.csv',index=False,encoding='utf-8-sig');w=result.source_weights
-     np.savez_compressed(trial/'source_weights.npz',source_row_index=np.arange(len(w),dtype=np.int32),raw_weight=w.raw_weight.to_numpy(),clipped_weight=w.clipped_weight.to_numpy(),fold=w['fold'].to_numpy())
-     write_json(trial/'diagnostics.json',result.diagnostics)
-     # This is the first access to Target truth in this estimator execution stage.
-     if truth_labels is None:truth_labels=pd.read_parquet(target_export/target_role/'labels_for_evaluation.parquet')
-     evaluation=target[['sample_id','final_prediction']].merge(truth_labels,on='sample_id',validate='one_to_one')
-     actual=actual_confusion(evaluation.y_true.to_numpy(),evaluation.final_prediction.to_numpy(),cfg);estimate=result.estimates
-     row={key:estimate.get(key) for key in PAPE_COLUMNS}
-     for name in ['fn','fp','recall','f1']:row['actual_'+name]=actual[name]
-     expected={k:estimate['estimated_'+k] for k in ['tp','fp','fn','tn','recall','f1','loss','recall_defined','f1_defined','accuracy','accuracy_defined']}
-     errors={name+'_absolute_error':abs(expected[name]-actual[name]) for name in ['fn','fp','recall','f1','loss']}
-     record={'csv_row_index':index,'target_chunk_id':cid,'target_role':target_role,'mode':mode,'seed':int(seed),'weighting':weighting,
-      'n_target':len(target),'expected':expected,'actual':actual,'errors':errors,'member_hash':str(members.member_hash.iloc[0]),
-      'input_variant':estimate['input_variant'],'model_hash':em['model_hash'],'threshold_policy_hash':em['threshold_policy_hash'],
-      'source_manifest_hash':source_hash,'config_hash':digest(trialconfig),'executed_at':result.diagnostics['created_at'],
-      'code_revision':code_revision(),'diagnostics':result.diagnostics,'source_context':source_context,
-      'probabilities_path':str((trial/'target_probabilities.csv').relative_to(out)),'probabilities_hash':hash_file(trial/'target_probabilities.csv'),
-      'weights_path':str((trial/'source_weights.npz').relative_to(out)),'weights_hash':hash_file(trial/'source_weights.npz')}
-     write_json(trial/'record.json',record);records.append(record);rows.append(row)
-     print(f'PAPE {target_role} {len(rows)}/{len(chunkids)*len(cfg["pape"]["seeds"])*len(weightings)}: {cid}, seed={seed}, {weighting}',flush=True)
+   index=len(rows);trial=out/'trials'/f'{index:05d}';trial.mkdir(parents=True)
+   result.target_probabilities.to_csv(trial/'target_probabilities.csv',index=False,encoding='utf-8-sig');w=result.source_weights
+   np.savez_compressed(trial/'source_weights.npz',source_row_index=np.arange(len(w),dtype=np.int32),raw_weight=w.raw_weight.to_numpy(),clipped_weight=w.clipped_weight.to_numpy(),fold=w['fold'].to_numpy())
+   write_json(trial/'diagnostics.json',result.diagnostics)
+   # This is the first access to Target truth in this estimator execution stage.
+   if truth_labels is None:truth_labels=pd.read_parquet(target_export/target_role/'labels_for_evaluation.parquet')
+   evaluation=target[['sample_id','final_prediction']].merge(truth_labels,on='sample_id',validate='one_to_one')
+   actual=actual_confusion(evaluation.y_true.to_numpy(),evaluation.final_prediction.to_numpy(),cfg);estimate=result.estimates
+   row={key:estimate.get(key) for key in PAPE_COLUMNS}
+   for name in ['fn','fp','recall','f1']:row['actual_'+name]=actual[name]
+   expected={k:estimate['estimated_'+k] for k in ['tp','fp','fn','tn','recall','f1','loss','recall_defined','f1_defined','accuracy','accuracy_defined']}
+   errors={name+'_absolute_error':abs(expected[name]-actual[name]) for name in ['fn','fp','recall','f1','loss']}
+   record={'csv_row_index':index,'target_chunk_id':cid,'target_role':target_role,'mode':mode,'seed':int(seed),'weighting':weighting,
+    'n_target':len(target),'expected':expected,'actual':actual,'errors':errors,'member_hash':str(members.member_hash.iloc[0]),
+    'input_variant':estimate['input_variant'],'model_hash':em['model_hash'],'threshold_policy_hash':em['threshold_policy_hash'],
+    'source_manifest_hash':source_hash,'config_hash':digest(trialconfig),'executed_at':result.diagnostics['created_at'],
+    'code_revision':code_revision(),'diagnostics':result.diagnostics,'source_context':source_context,
+    'probabilities_path':str((trial/'target_probabilities.csv').relative_to(out)),'probabilities_hash':hash_file(trial/'target_probabilities.csv'),
+    'weights_path':str((trial/'source_weights.npz').relative_to(out)),'weights_hash':hash_file(trial/'source_weights.npz')}
+   write_json(trial/'record.json',record);records.append(record);rows.append(row)
+   print(f'PAPE {target_role} {len(rows)}/{len(chunkids)*len(cfg["pape"]["seeds"])*len(weightings)}: {cid}, seed={seed}, {weighting}',flush=True)
   pd.DataFrame(rows,columns=PAPE_COLUMNS).to_csv(out/'pape_estimates.csv',index=False,encoding='utf-8-sig')
   errors=pd.DataFrame([{'input_variant':r['input_variant'],'seed':r['seed'],**r['errors']} for r in records])
   comparison=errors.groupby('input_variant',sort=False)[[c for c in errors if c.endswith('_absolute_error')]].mean().reset_index()

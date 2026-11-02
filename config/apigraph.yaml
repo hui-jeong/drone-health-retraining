@@ -1,6 +1,6 @@
-protocol_version: apigraph_fresh_source2013_2015_validation2016_v7
+protocol_version: apigraph_meeting_validation2015_v8
 schema_version: rise2_apigraph_v2
-study_name: fresh2012_source2013_2015_validation2016_only
+study_name: meeting_fresh2012_source2013_2014_validation2015_only
 seed: 11
 paths:
   data: data/apigraph
@@ -12,10 +12,10 @@ data:
 split:
   train_year: '2012'
   source_start: 2013-01
-  source_end: 2015-12
-  validation_start: 2016-01
-  validation_end: 2016-12
-  test_start: 2017-01
+  source_end: 2014-12
+  validation_start: 2015-01
+  validation_end: 2015-12
+  test_start: 2016-01
   test_end: 2018-12
 model:
   objective: binary:logistic
@@ -1266,3 +1266,12 @@ execution:
   allowed_target_roles:
   - validation
   final_test_enabled: false
+  workers: 4
+annual_source:
+  update_month: 1
+  policy: cumulative_previous_year
+  first_test_source_end: 2015-12
+  validation_released_after_selection_freeze: true
+  require_previous_year_completed: true
+  label_availability_assumption: all_previous_year_labels_available_at_next_january
+  execution_owner: future_integration

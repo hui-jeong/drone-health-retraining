@@ -10,6 +10,8 @@ from drone_health_retraining.apigraph.data import build_membership,groups_of
 from drone_health_retraining.pape.apigraph.pape import estimate_target_performance,domain_folds
 from drone_health_retraining.pape.apigraph.pipeline import pape_stage,verify_pape
 from drone_health_retraining.pape.apigraph.handoff import read_app_inputs
+from drone_health_retraining.pape.apigraph.parallel import trial_results
+from drone_health_retraining.pape.apigraph.source_schedule import planned_source_context
 from drone_health_retraining.pape.apigraph.integration import load_operational_inputs,validate_gain_timeline
 
 class APIGraphPapeTests(unittest.TestCase):
@@ -17,12 +19,13 @@ class APIGraphPapeTests(unittest.TestCase):
  def setUpClass(cls):
   cls.temp=tempfile.TemporaryDirectory();root=Path(cls.temp.name)
   cfg=load_config('config/apigraph.yaml');cfg['paths']={'data':str(root/'unused'),'outputs':str(root/'outputs')}
+  cfg['execution']['workers']=1
   cfg['data']['features']=16;cfg['pape']['features']=[f'binary_{i:04d}' for i in range(16)]
   for k in ['domain_model','calibrator']:cfg['pape'][k].update(n_estimators=4,num_leaves=4,min_child_samples=3,n_jobs=1)
   rng=np.random.default_rng(912);base=np.unique(rng.integers(0,2,(360,16),dtype=np.uint8),axis=0)
   export=root/'fixture_export';export.mkdir();infos=[]
   (export/'resolved.yaml').write_text(yaml.safe_dump(cfg),encoding='utf-8')
-  for role,years in [('source',range(2013,2016)),('validation',[2016])]:
+  for role,years in [('source',range(2013,2015)),('validation',[2015])]:
    xs=[];months=[]
    for year in years:
     for mm in range(1,13):xs.append(base[rng.choice(len(base),24,replace=False)]);months.extend([f'{year}-{mm:02d}']*24)
@@ -68,12 +71,32 @@ class APIGraphPapeTests(unittest.TestCase):
   df=pd.read_csv(self.result/'confusion_matrix.csv')
   for p in ['estimated','actual']:np.testing.assert_allclose(sum(df[p+'_'+k] for k in ['tp','fp','fn','tn']),df.n_target)
  def test_future_source_and_test_blocked(self):
-  cfg=copy.deepcopy(self.cfg);cfg['target_chunk_id']='fixture';cfg['pape']['weighting']='dre';source=self.source.copy();source.loc[0,'observed_month']='2016-01'
+  cfg=copy.deepcopy(self.cfg);cfg['target_chunk_id']='fixture';cfg['pape']['weighting']='dre';source=self.source.copy();source.loc[0,'observed_month']='2015-01'
   with self.assertRaisesRegex(ValueError,'Period/role'):estimate_target_performance(source,self.target,cfg)
   with self.assertRaisesRegex(ValueError,'disabled'):pape_stage(cfg,target_role='test')
  def test_path_changes_do_not_change_semantic_export_contract(self):
   exported=yaml.safe_load((self.export/'resolved.yaml').read_text());self.assertEqual(semantic_config(exported),semantic_config(self.cfg))
  def test_gain_horizon_is_monthly(self):
   v=validate_gain_timeline('2016-11',['2015-01'],['2016-12','2017-01'],2);self.assertEqual(v['gain_label_available_from_month'],'2017-02')
+
+ def test_serial_parallel_numeric_equivalence(self):
+  members=pd.read_parquet(self.export/'validation/chunk_membership.parquet')
+  cid=members.sort_values('ordinal').target_chunk_id.iloc[0]
+  target=read_app_inputs(self.export,'validation')
+  results=[]
+  for workers in [1,2]:
+   cfg=copy.deepcopy(self.cfg);cfg['execution']['workers']=workers;cfg['pape']['seeds']=[11]
+   results.append(list(trial_results(cfg,cfg,self.export,self.export,'validation',[cid],['uniform','dre'],self.source,target,members)))
+  for a,b in zip(*results):
+   self.assertEqual(a[:3],b[:3])
+   np.testing.assert_array_equal(a[4].target_probabilities.calibrated_probability,b[4].target_probabilities.calibrated_probability)
+   np.testing.assert_array_equal(a[4].source_weights.raw_weight,b[4].source_weights.raw_weight)
+
+ def test_meeting_annual_source_handoff_guards(self):
+  self.assertEqual(planned_source_context(2015)['source_period'],['2013-01','2014-12'])
+  with self.assertRaisesRegex(ValueError,'Freeze'):planned_source_context(2016)
+  self.assertEqual(planned_source_context(2016,selection_frozen=True)['source_period'],['2013-01','2015-12'])
+  with self.assertRaisesRegex(ValueError,'Previous Test'):planned_source_context(2017,selection_frozen=True)
+  self.assertEqual(planned_source_context(2018,selection_frozen=True,previous_year_complete=True)['source_period'],['2013-01','2017-12'])
 
 if __name__=='__main__':unittest.main(verbosity=2)
