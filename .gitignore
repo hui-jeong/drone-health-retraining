@@ -28,3 +28,8 @@ config/pape_version_1_0.local.yaml
 *.npz
 local.yaml
 *.local.yaml
+
+data/
+*.pkl
+model.json
+*.pyc

@@ -1,0 +1,30 @@
+project:
+  seed: 42
+  integration_version: "0.1"
+
+paths:
+  # 개인 환경에서는 config/local.yaml로 덮어쓰세요.
+  company_model_root: ../external/drone_health_lstm_ae_v2.3
+  company_config: ../external/drone_health_lstm_ae_v2.3/config/default.yaml
+  data_root: ../datasets/preprocessing
+  model_output_root: ../datasets/lstm_ae_outputs_v23
+  window_features: outputs/baseline/window_features.parquet
+  baseline_manifest: outputs/baseline/baseline_manifest.json
+
+baseline:
+  expected_model_ready_files: 360
+  expected_source_runs: 180
+  expected_normal_files: 180
+  expected_abnormal_files: 180
+  expected_source_feature_count: 106
+  expected_window_f1: 0.7848
+  expected_run_f1: 0.8095
+  metric_tolerance: 0.005
+
+export:
+  # source_key는 normal/abnormal 파생본을 의도적으로 공유하므로
+  # source_key+start 만으로는 window_id가 중복될 수 있습니다.
+  # record_id를 포함해 고유성을 보장합니다.
+  window_id_strategy: source_record_start
+  latent_size: 32
+  output_compression: snappy
